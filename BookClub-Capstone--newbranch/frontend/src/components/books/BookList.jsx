@@ -12,8 +12,10 @@ import {
 } from '@mui/material';
 import api from '../../api/axiosConfig';
 import BookCard from './BookCard'; // We'll keep BookCard as a sub-component
+import { useNavigate } from 'react-router-dom';
 
 export default function BookList({ onBookSelect }) {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [genre, setGenre] = useState('');
   const [books, setBooks] = useState([]);

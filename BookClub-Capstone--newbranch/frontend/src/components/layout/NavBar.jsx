@@ -1,23 +1,23 @@
 // src/components/layout/NavBar.js
-import React, { useState, useEffect } from 'react';
-import { 
-  AppBar, 
-  Toolbar, 
-  Typography, 
-  Button, 
-  Box, 
-  IconButton, 
-  Badge, 
-  Menu, 
-  MenuItem, 
+import React, { useState, useEffect } from "react";
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  Box,
+  IconButton,
+  Badge,
+  Menu,
+  MenuItem,
   Divider,
   ListItemText,
-  Alert
-} from '@mui/material';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import api from '../../api/axiosConfig';
+  Alert,
+} from "@mui/material";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import api from "../../api/axiosConfig";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -30,16 +30,16 @@ export default function NavBar() {
   useEffect(() => {
     const fetchNotifications = async () => {
       if (!user) return;
-      
+
       try {
         const [groupRes, progressRes] = await Promise.all([
-          api.get('/groups/'),
-          api.get('/reading-progress/')
+          api.get("/groups/"),
+          api.get("/reading-progress/"),
         ]);
 
         // Create a map of group_id to progress
         const progressMap = {};
-        progressRes.data.forEach(p => {
+        progressRes.data.forEach((p) => {
           progressMap[p.group] = p;
         });
 
@@ -53,14 +53,17 @@ export default function NavBar() {
             startDate.setHours(0, 0, 0, 0);
             const deadline = new Date(group.deadline || group.end_date);
             deadline.setHours(0, 0, 0, 0);
-            
-            const totalDays = Math.max(1, (deadline - startDate) / (1000 * 60 * 60 * 24));
+
+            const totalDays = Math.max(
+              1,
+              (deadline - startDate) / (1000 * 60 * 60 * 24)
+            );
             const elapsedDays = (today - startDate) / (1000 * 60 * 60 * 24);
             const daysRemaining = (deadline - today) / (1000 * 60 * 60 * 24);
-            
+
             const progress = progressMap[group.id];
             const currentProgress = progress ? progress.percentage : 0;
-            
+
             // Calculate expected progress
             let scheduleProgress = 0;
             if (elapsedDays < 0) {
@@ -70,60 +73,87 @@ export default function NavBar() {
             } else {
               scheduleProgress = (elapsedDays / totalDays) * 100;
             }
-            
+
             // Generate different types of notifications
             const reminders = [];
-            
+
             // 1. Urgent - Deadline approaching (within 3 days)
-            if (daysRemaining > 0 && daysRemaining <= 3 && currentProgress < 100) {
+            if (
+              daysRemaining > 0 &&
+              daysRemaining <= 3 &&
+              currentProgress < 100
+            ) {
               reminders.push({
                 groupId: group.id,
-                type: 'urgent',
-                severity: 'error',
-                message: `🚨 Deadline for "${group.name}" is in ${Math.ceil(daysRemaining)} day(s)! You're at ${currentProgress}%.`,
+                type: "urgent",
+                severity: "error",
+                message: `🚨 Deadline for "${group.name}" is in ${Math.ceil(
+                  daysRemaining
+                )} day(s)! You're at ${currentProgress}%.`,
               });
             }
-            
+
             // 2. Overdue - Past deadline
             else if (daysRemaining < 0 && currentProgress < 100) {
               reminders.push({
                 groupId: group.id,
-                type: 'overdue',
-                severity: 'error',
+                type: "overdue",
+                severity: "error",
                 message: `📕 "${group.name}" deadline has passed! You're at ${currentProgress}%.`,
               });
             }
-            
+
             // 3. Behind schedule (more than 15% behind)
-            else if (elapsedDays > 0 && scheduleProgress > currentProgress + 15) {
+            else if (
+              elapsedDays > 0 &&
+              scheduleProgress > currentProgress + 15
+            ) {
               reminders.push({
                 groupId: group.id,
-                type: 'behind',
-                severity: 'warning',
-                message: `⚠️ You're falling behind in "${group.name}"! At ${currentProgress}% but should be at ${Math.round(scheduleProgress)}%.`,
+                type: "behind",
+                severity: "warning",
+                message: `⚠️ You're falling behind in "${
+                  group.name
+                }"! At ${currentProgress}% but should be at ${Math.round(
+                  scheduleProgress
+                )}%.`,
               });
             }
-            
+
             // 4. Warning - Slightly behind schedule (5-15% behind)
-            else if (elapsedDays > 0 && scheduleProgress > currentProgress + 5 && daysRemaining <= 7) {
+            else if (
+              elapsedDays > 0 &&
+              scheduleProgress > currentProgress + 5 &&
+              daysRemaining <= 7
+            ) {
               reminders.push({
                 groupId: group.id,
-                type: 'warning',
-                severity: 'info',
-                message: `💡 "${group.name}": ${currentProgress}% complete with ${Math.ceil(daysRemaining)} days left.`,
+                type: "warning",
+                severity: "info",
+                message: `💡 "${
+                  group.name
+                }": ${currentProgress}% complete with ${Math.ceil(
+                  daysRemaining
+                )} days left.`,
               });
             }
-            
+
             // 5. Success - On track
-            else if (elapsedDays > 0 && currentProgress >= scheduleProgress && currentProgress > 0 && currentProgress < 100 && daysRemaining > 3) {
+            else if (
+              elapsedDays > 0 &&
+              currentProgress >= scheduleProgress &&
+              currentProgress > 0 &&
+              currentProgress < 100 &&
+              daysRemaining > 3
+            ) {
               reminders.push({
                 groupId: group.id,
-                type: 'success',
-                severity: 'success',
+                type: "success",
+                severity: "success",
                 message: `✨ Great job! You're ${currentProgress}% through "${group.name}" and on schedule!`,
               });
             }
-            
+
             return reminders;
           })
           .flat()
@@ -133,33 +163,37 @@ export default function NavBar() {
         const dummyNotifications = [
           {
             groupId: null,
-            type: 'new_member',
-            severity: 'info',
-            message: '👥 New member "sarah" joined "To Kill a Mockingbird Discussion Group"!',
+            type: "new_member",
+            severity: "info",
+            message:
+              '👥 New member "sarah" joined "To Kill a Mockingbird Discussion Group"!',
           },
           {
             groupId: null,
-            type: 'new_post',
-            severity: 'info',
-            message: '💬 New discussion post in "1984 Book Club": "What did you think about the ending?"',
+            type: "new_post",
+            severity: "info",
+            message:
+              '💬 New discussion post in "1984 Book Club": "What did you think about the ending?"',
           },
           {
             groupId: null,
-            type: 'milestone',
-            severity: 'success',
-            message: '🎉 Congratulations! You completed 50% of "The Great Gatsby"!',
+            type: "milestone",
+            severity: "success",
+            message:
+              '🎉 Congratulations! You completed 50% of "The Great Gatsby"!',
           },
           {
             groupId: null,
-            type: 'comment',
-            severity: 'info',
-            message: '💭 john replied to your post in "Pride and Prejudice" discussion.',
+            type: "comment",
+            severity: "info",
+            message:
+              '💭 john replied to your post in "Pride and Prejudice" discussion.',
           },
           {
             groupId: null,
-            type: 'achievement',
-            severity: 'success',
-            message: '🏆 Achievement unlocked: Read 3 books this month!',
+            type: "achievement",
+            severity: "success",
+            message: "🏆 Achievement unlocked: Read 3 books this month!",
           },
         ];
 
@@ -167,44 +201,48 @@ export default function NavBar() {
         const allNotifications = [...newNotifications, ...dummyNotifications];
         setNotifications(allNotifications);
       } catch (err) {
-        console.error('Failed to load notifications', err);
+        console.error("Failed to load notifications", err);
         // Show dummy notifications even if API fails
         const dummyNotifications = [
           {
             groupId: null,
-            type: 'new_member',
-            severity: 'info',
-            message: '👥 New member "sarah" joined "To Kill a Mockingbird Discussion Group"!',
+            type: "new_member",
+            severity: "info",
+            message:
+              '👥 New member "sarah" joined "To Kill a Mockingbird Discussion Group"!',
           },
           {
             groupId: null,
-            type: 'new_post',
-            severity: 'info',
-            message: '💬 New discussion post in "1984 Book Club": "What did you think about the ending?"',
+            type: "new_post",
+            severity: "info",
+            message:
+              '💬 New discussion post in "1984 Book Club": "What did you think about the ending?"',
           },
           {
             groupId: null,
-            type: 'milestone',
-            severity: 'success',
-            message: '🎉 Congratulations! You completed 50% of "The Great Gatsby"!',
+            type: "milestone",
+            severity: "success",
+            message:
+              '🎉 Congratulations! You completed 50% of "The Great Gatsby"!',
           },
           {
             groupId: null,
-            type: 'comment',
-            severity: 'info',
-            message: '💭 john replied to your post in "Pride and Prejudice" discussion.',
+            type: "comment",
+            severity: "info",
+            message:
+              '💭 john replied to your post in "Pride and Prejudice" discussion.',
           },
           {
             groupId: null,
-            type: 'achievement',
-            severity: 'success',
-            message: '🏆 Achievement unlocked: Read 3 books this month!',
+            type: "achievement",
+            severity: "success",
+            message: "🏆 Achievement unlocked: Read 3 books this month!",
           },
           {
             groupId: null,
-            type: 'reminder',
-            severity: 'warning',
-            message: '📖 Don\'t forget to update your reading progress today!',
+            type: "reminder",
+            severity: "warning",
+            message: "📖 Don't forget to update your reading progress today!",
           },
         ];
         setNotifications(dummyNotifications);
@@ -235,33 +273,33 @@ export default function NavBar() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    navigate("/");
   };
 
   return (
-    <AppBar 
+    <AppBar
       position="static"
       sx={{
-        bgcolor: 'rgba(128, 128, 128, 0.3)', // Transparent grey
-        backdropFilter: 'blur(10px)',
-        color: 'white', // White text
+        bgcolor: "rgba(128, 128, 128, 0.3)", // Transparent grey
+        backdropFilter: "blur(10px)",
+        color: "white", // White text
       }}
     >
       <Toolbar>
-        <Typography 
-          variant="h6" 
-          sx={{ 
-            flexGrow: 1, 
-            cursor: 'pointer',
-            color: 'white', // White text
-            fontWeight: 'bold'
-          }} 
-          onClick={() => navigate('/home')}
+        <Typography
+          variant="h6"
+          sx={{
+            flexGrow: 1,
+            cursor: "pointer",
+            color: "white", // White text
+            fontWeight: "bold",
+          }}
+          onClick={() => navigate("/home")}
         >
           Group Book Reading
         </Typography>
         {user ? (
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ display: "flex", alignItems: "center" }}>
             {/* Notification Icon */}
             <IconButton
               color="inherit"
@@ -270,7 +308,7 @@ export default function NavBar() {
               aria-label="notifications"
             >
               <Badge badgeContent={notifications.length} color="error">
-                <NotificationsIcon sx={{ color: 'white' }} />
+                <NotificationsIcon sx={{ color: "white" }} />
               </Badge>
             </IconButton>
 
@@ -281,102 +319,125 @@ export default function NavBar() {
               onClose={handleNotificationClose}
               PaperProps={{
                 sx: {
-                  bgcolor: 'rgba(128, 128, 128, 0.9)', // Darker grey for dropdown
-                  color: 'white', // White text in dropdown
+                  bgcolor: "rgba(128, 128, 128, 0.9)", // Darker grey for dropdown
+                  color: "white", // White text in dropdown
                   maxWidth: 400,
                   maxHeight: 500,
-                  mt: 1
-                }
+                  mt: 1,
+                },
               }}
-              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
             >
               <Box sx={{ px: 2, py: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'white' }}>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: "bold", color: "white" }}
+                >
                   📬 Notifications
                 </Typography>
               </Box>
-              <Divider sx={{ bgcolor: 'rgba(255,255,255,0.3)' }} />
-              
+              <Divider sx={{ bgcolor: "rgba(255,255,255,0.3)" }} />
+
               {notifications.length === 0 ? (
-                <MenuItem disabled sx={{ color: 'rgba(255,255,255,0.7)' }}>
-                  <ListItemText 
+                <MenuItem disabled sx={{ color: "rgba(255,255,255,0.7)" }}>
+                  <ListItemText
                     primary="No notifications"
                     secondary="You're all caught up! 🎉"
-                    primaryTypographyProps={{ sx: { color: 'rgba(255,255,255,0.7)' } }}
-                    secondaryTypographyProps={{ sx: { color: 'rgba(255,255,255,0.5)' } }}
+                    primaryTypographyProps={{
+                      sx: { color: "rgba(255,255,255,0.7)" },
+                    }}
+                    secondaryTypographyProps={{
+                      sx: { color: "rgba(255,255,255,0.5)" },
+                    }}
                   />
                 </MenuItem>
               ) : (
                 notifications.map((notification, index) => (
                   <React.Fragment key={index}>
-                    <MenuItem 
-                      onClick={() => handleNotificationItemClick(notification.groupId)}
-                      sx={{ 
-                        whiteSpace: 'normal',
+                    <MenuItem
+                      onClick={() =>
+                        handleNotificationItemClick(notification.groupId)
+                      }
+                      sx={{
+                        whiteSpace: "normal",
                         py: 1.5,
-                        '&:hover': {
-                          backgroundColor: 'rgba(255,255,255,0.1)'
-                        }
+                        "&:hover": {
+                          backgroundColor: "rgba(255,255,255,0.1)",
+                        },
                       }}
                     >
-                      <Alert 
-                        severity={notification.severity} 
-                        sx={{ 
-                          width: '100%',
-                          '& .MuiAlert-message': {
-                            width: '100%',
-                            color: 'white',
+                      <Alert
+                        severity={notification.severity}
+                        sx={{
+                          width: "100%",
+                          "& .MuiAlert-message": {
+                            width: "100%",
+                            color: "white",
                           },
-                          '& .MuiAlert-action': {
-                            color: 'white',
+                          "& .MuiAlert-action": {
+                            color: "white",
                           },
                           // Black background for better visibility
-                          bgcolor: notification.severity === 'error' ? 'rgba(0, 0, 0, 0.8)' : 
-                                   notification.severity === 'warning' ? 'rgba(0, 0, 0, 0.8)' : 
-                                   notification.severity === 'info' ? 'rgba(0, 0, 0, 0.8)' : 
-                                   'rgba(0, 0, 0, 0.8)',
+                          bgcolor:
+                            notification.severity === "error"
+                              ? "rgba(0, 0, 0, 0.8)"
+                              : notification.severity === "warning"
+                              ? "rgba(0, 0, 0, 0.8)"
+                              : notification.severity === "info"
+                              ? "rgba(0, 0, 0, 0.8)"
+                              : "rgba(0, 0, 0, 0.8)",
                           // Enhanced text colors for better contrast
-                          color: notification.severity === 'error' ? '#f44336' : 
-                                 notification.severity === 'warning' ? '#ff9800' : 
-                                 notification.severity === 'info' ? '#2196f3' : 
-                                 '#4caf50',
+                          color:
+                            notification.severity === "error"
+                              ? "#f44336"
+                              : notification.severity === "warning"
+                              ? "#ff9800"
+                              : notification.severity === "info"
+                              ? "#2196f3"
+                              : "#4caf50",
                           // Enhanced icon color
-                          '& .MuiAlert-icon': {
-                            color: notification.severity === 'error' ? '#f44336' : 
-                                   notification.severity === 'warning' ? '#ff9800' : 
-                                   notification.severity === 'info' ? '#2196f3' : 
-                                   '#4caf50',
+                          "& .MuiAlert-icon": {
+                            color:
+                              notification.severity === "error"
+                                ? "#f44336"
+                                : notification.severity === "warning"
+                                ? "#ff9800"
+                                : notification.severity === "info"
+                                ? "#2196f3"
+                                : "#4caf50",
                           },
                         }}
                       >
                         {notification.message}
                       </Alert>
                     </MenuItem>
-                    {index < notifications.length - 1 && <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />}
+                    {index < notifications.length - 1 && (
+                      <Divider sx={{ bgcolor: "rgba(255,255,255,0.1)" }} />
+                    )}
                   </React.Fragment>
                 ))
               )}
             </Menu>
 
-            <Typography 
-              variant="body1" 
-              sx={{ 
-                display: 'inline', 
-                mr: 2, 
-                color: 'white' // White text
+            <Typography
+              variant="body1"
+              sx={{
+                display: "inline",
+                mr: 2,
+                color: "white", // White text
               }}
             >
               Welcome, {user.username}!
             </Typography>
-            <Button 
-              color="inherit" 
+            <Button
+              color="inherit"
               onClick={handleLogout}
               sx={{
-                color: 'white', // White text
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                }
+                color: "white", // White text
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                },
               }}
             >
               Logout
@@ -384,26 +445,26 @@ export default function NavBar() {
           </Box>
         ) : (
           <>
-            <Button 
-              color="inherit" 
+            <Button
+              color="inherit"
               href="/register"
               sx={{
-                color: 'white', // White text
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                }
+                color: "white", // White text
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                },
               }}
             >
               Sign Up
             </Button>
-            <Button 
-              color="inherit" 
+            <Button
+              color="inherit"
               href="/login"
               sx={{
-                color: 'white', // White text
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.1)',
-                }
+                color: "white", // White text
+                "&:hover": {
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                },
               }}
             >
               Login

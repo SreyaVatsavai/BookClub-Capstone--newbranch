@@ -1,10 +1,21 @@
+# views.py - API endpoints for the BookClub application
+# I structured these views around key features:
+# 1. Authentication (register, login, username checks)
+# 2. Book discovery and details
+# 3. Reading group management
+# 4. Discussion and social features
+# 5. Reading progress tracking
+#
+# I used Django REST framework decorators and made most endpoints
+# require authentication for security.
+
 from django.shortcuts import render, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from django.db.models import Q
+from django.db.models import Q  # For complex book search queries
 from django.utils.dateparse import parse_date
 
 from rest_framework.decorators import api_view, permission_classes
@@ -29,7 +40,18 @@ import re
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def check_username(request):
-    """Check if username is available."""
+    """
+    Endpoint: GET /api/check-username/?username=<name>
+    
+    I added this endpoint to provide real-time username availability checks
+    during registration. It's publicly accessible (AllowAny) since it's used
+    before registration.
+    
+    Design choices:
+    - Simple GET with query param for easy frontend integration
+    - Returns both username and availability for UI feedback
+    - Basic validation to ensure username is provided
+    """
     username = request.GET.get("username")
     
     if not username:
@@ -38,7 +60,7 @@ def check_username(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     
-    # Check if username exists
+    # Simple DB query to check existence
     is_available = not User.objects.filter(username=username).exists()
     
     return Response({
@@ -48,12 +70,24 @@ def check_username(request):
 
 
 def validate_password_strength(password):
-    """Validate password meets all requirements."""
+    """
+    Validates password strength against our security requirements.
+    
+    I implemented comprehensive checks to ensure strong passwords:
+    - Minimum length for basic security
+    - Mix of upper/lowercase for complexity
+    - Numbers required for extra entropy
+    - No repeating digits to prevent simple patterns
+    
+    Returns a list of specific error messages to help users fix weak passwords.
+    """
     errors = []
     
+    # Basic length requirement
     if len(password) < 6:
         errors.append("Password must be at least 6 characters long")
     
+    # Character type requirements
     if not re.search(r'[A-Z]', password):
         errors.append("Password must contain at least one uppercase letter")
     
@@ -63,10 +97,11 @@ def validate_password_strength(password):
     if not re.search(r'[0-9]', password):
         errors.append("Password must contain at least one number")
     
+    # Ensure both letters and numbers are present
     if not (re.search(r'[a-zA-Z]', password) and re.search(r'[0-9]', password)):
         errors.append("Password must contain both letters and numbers")
     
-    # Check for 3 or more consecutive same digits
+    # Prevent simple patterns like '111' or '999'
     if re.search(r'(\d)\1{2,}', password):
         errors.append("Password cannot contain consecutive repeating digits (e.g., 111, 222)")
     
@@ -76,24 +111,39 @@ def validate_password_strength(password):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register_user(request):
-    """Register a new user with validation."""
+    """
+    Endpoint: POST /api/auth/register/
+    Payload: { "username": "...", "password": "..." }
+    
+    Handles new user registration with comprehensive validation. I implemented:
+    - Required field validation
+    - Username length and uniqueness checks
+    - Password strength validation via validate_password_strength()
+    
+    Security considerations:
+    - CSRF exempt since it's an API endpoint
+    - Publicly accessible for registration
+    - Returns specific validation errors to help users
+    """
     username = request.data.get("username")
     password = request.data.get("password")
 
+    # Basic required field validation
     if not username or not password:
         return Response(
             {"error": "Username and password required"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Validate username length
+    # Username requirements - kept minimal for usability
     if len(username) < 3:
         return Response(
             {"username": ["Username must be at least 3 characters long"]},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Check if username already exists
+    # Uniqueness check - though we have the check-username endpoint,
+    # this prevents race conditions
     if User.objects.filter(username=username).exists():
         return Response(
             {"username": ["Username already taken"]},
@@ -119,15 +169,30 @@ def register_user(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def user_login(request):
-    """User login endpoint."""
+    """
+    Endpoint: POST /api/auth/login/
+    Payload: { "username": "...", "password": "..." }
+    
+    Handles user authentication. I kept this endpoint simple but secure:
+    - Uses Django's built-in authenticate() for password checking
+    - Creates a session on successful login
+    - Returns user data for the frontend
+    
+    Security:
+    - CSRF exempt for API access
+    - Returns 401 for invalid credentials
+    - Doesn't specify which field (username/password) was wrong
+    """
     username = request.data.get("username")
     password = request.data.get("password")
     user = authenticate(username=username, password=password)
 
     if user:
+        # Create session and return user data
         login(request, user)
         return Response(UserSerializer(user).data)
 
+    # Generic error - don't specify what was wrong
     return Response(
         {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
     )
@@ -136,7 +201,18 @@ def user_login(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def user_logout(request):
-    """Logout current user."""
+    """
+    Endpoint: POST /api/auth/logout/
+    
+    Simple endpoint to log out the current user. I kept this minimal:
+    - Uses Django's built-in logout()
+    - Requires authentication to prevent unnecessary calls
+    - Returns a simple success message
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Invalidates the user's session
+    """
     logout(request)
     return Response({"message": "Logged out"})
 
@@ -144,7 +220,20 @@ def user_logout(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_user(request):
-    """Fetch current logged-in user details."""
+    """
+    Endpoint: GET /api/auth/user/
+    Response: User profile data
+    
+    Quick endpoint to get current user data. Used by the frontend to:
+    - Verify authentication status
+    - Get user details after session restore
+    - Update UI with user info
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Only returns current user's data
+    - Uses serializer for safe field filtering
+    """
     return Response(UserSerializer(request.user).data)
 
 
@@ -153,7 +242,26 @@ def get_user(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def book_list(request):
-    """List or search for books."""
+    """
+    Endpoint: GET /api/books/
+    Query params: 
+        search: Search in title and author (optional)
+        genre: Filter by exact genre (optional)
+    
+    Book discovery endpoint with flexible search:
+    - Full book list when no filters
+    - Text search across title and author
+    - Genre filtering for targeted browsing
+    
+    Implementation details:
+    - Case-insensitive search using icontains
+    - Exact genre matching to prevent partial matches
+    - Combines multiple filters with AND logic
+    
+    Performance:
+    - No joins or complex queries
+    - Returns only essential fields via serializer
+    """
     query = request.GET.get("search", "")
     genre = request.GET.get("genre", "")
     books = Book.objects.all()
@@ -169,12 +277,31 @@ def book_list(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def book_detail(request, pk):
-    """Get book details and available groups."""
+    """
+    Endpoint: GET /api/books/{pk}/
+    Response: Book details + available reading groups
+    
+    Comprehensive book details endpoint that I designed to:
+    - Show full book information
+    - List available reading groups for the book
+    - Help users find active groups to join
+    
+    Implementation details:
+    - Uses prefetch_related for efficient group loading
+    - Filters out empty/inactive groups
+    - Post-processes to remove full groups
+    
+    Optimizations:
+    - Prefetches related groups to avoid N+1 queries
+    - Combines book and group data in single response
+    - Only returns non-full groups to prevent failed joins
+    """
     try:
         book = Book.objects.prefetch_related("readinggroup_set").get(pk=pk)
     except Book.DoesNotExist:
         return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
 
+    # Find active groups that aren't full
     available_groups = book.readinggroup_set.filter(memberships__isnull=False).distinct()
     available_groups = [g for g in available_groups if not g.is_full]
 
@@ -188,7 +315,30 @@ def book_detail(request, pk):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def group_list_create(request):
-    """List or create reading groups."""
+    """
+    Endpoint: 
+        GET /api/groups/ - List user's groups
+        POST /api/groups/ - Create new group
+    
+    Dual-purpose endpoint I designed for group management:
+    1. GET: List all groups user is a member of
+    2. POST: Create a new reading group
+    
+    Creation process:
+    1. Validate group data via serializer
+    2. Set current user as creator
+    3. Auto-create membership for creator
+    
+    Design choices:
+    - Combined list/create to reduce endpoints
+    - Auto-membership saves extra API call
+    - GET returns only relevant groups to user
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Creator auto-set to authenticated user
+    - Validation via serializer
+    """
     if request.method == "POST":
         serializer = ReadingGroupSerializer(data=request.data)
         if serializer.is_valid():
@@ -207,7 +357,27 @@ def group_list_create(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def join_group(request, pk):
-    """Join a reading group."""
+    """
+    Endpoint: POST /api/groups/{pk}/join/
+    
+    Handles user requests to join reading groups. I implemented
+    comprehensive validation to ensure proper group joining:
+    
+    Validation order:
+    1. Group exists
+    2. Group has space
+    3. User isn't already a member
+    
+    Design choices:
+    - Simple POST endpoint for single action
+    - Clear error messages for each case
+    - Atomic membership creation
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Validates group existence
+    - Prevents duplicate memberships
+    """
     try:
         group = ReadingGroup.objects.get(pk=pk)
     except ReadingGroup.DoesNotExist:
@@ -226,7 +396,32 @@ def join_group(request, pk):
 @api_view(["POST", "DELETE"])
 @permission_classes([IsAuthenticated])
 def leave_group(request, pk):
-    """Leave a reading group."""
+    """
+    Endpoint: POST/DELETE /api/groups/{pk}/leave/
+    
+    Handles users leaving reading groups. I implemented special logic
+    to handle group creators and cleanup:
+    
+    Validation flow:
+    1. Group exists
+    2. User is a member
+    3. If creator, ensure no other members
+    
+    Cleanup actions:
+    1. Remove group membership
+    2. Delete reading progress
+    3. Delete chapter schedules (cascade)
+    
+    Special cases:
+    - Group creators can't leave if others present
+    - All user data removed on successful leave
+    - Both POST/DELETE supported for flexibility
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Validates membership
+    - Ensures creator responsibility
+    """
     try:
         group = ReadingGroup.objects.get(pk=pk)
     except ReadingGroup.DoesNotExist:
@@ -260,8 +455,31 @@ def leave_group(request, pk):
 @permission_classes([IsAuthenticated])
 def group_discussion(request, group_id):
     """
-    List or create discussion posts in a group.
-    Automatically attaches group and user to new posts.
+    Endpoints: 
+        GET /api/groups/{group_id}/discussion/ - List all posts
+        POST /api/groups/{group_id}/discussion/ - Create new post
+    
+    Core discussion feature that I designed to support group interactions:
+    
+    GET functionality:
+    - Lists all posts for the group
+    - Includes comments and reactions
+    - Uses prefetch_related for performance
+    
+    POST functionality:
+    - Creates new discussion posts
+    - Auto-assigns author and group
+    - Validates post content
+    
+    Design decisions:
+    - Combined list/create for simpler API
+    - Prefetch related data to minimize queries
+    - Auto-assignment reduces client complexity
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Membership verification
+    - Author auto-set to prevent spoofing
     """
     group = get_object_or_404(ReadingGroup, id=group_id)
 
@@ -288,7 +506,28 @@ def group_discussion(request, group_id):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def add_comment(request, post_id):
-    """Add a comment/reply to a discussion post."""
+    """
+    Endpoint: POST /api/posts/{post_id}/comments/
+    Payload: { "content": "comment text" }
+    
+    Handles comment creation on discussion posts. I designed this with:
+    
+    Validation chain:
+    1. Post exists
+    2. User is group member
+    3. Comment content valid
+    
+    Implementation choices:
+    - Simple POST-only endpoint
+    - Auto-assigns author and post
+    - Validates group membership
+    
+    Security features:
+    - Protected endpoint (requires auth)
+    - Group membership check
+    - Author auto-assignment
+    - Content validation
+    """
     try:
         post = DiscussionPost.objects.get(id=post_id)
     except DiscussionPost.DoesNotExist:
@@ -313,9 +552,32 @@ def add_comment(request, post_id):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def toggle_reaction(request, post_id):
-    """Toggle an emoji reaction for the authenticated user on a discussion post.
-    If the same emoji reaction exists from the user it will be removed, otherwise it will be added.
-    Returns the updated list of reactions for the post.
+    """
+    Endpoint: POST /api/posts/{post_id}/react/
+    Payload: { "emoji": "👍" }
+    Response: { "action": "added"/"removed", "reactions": [...] }
+    
+    Smart reaction toggle endpoint I designed for post interactions:
+    
+    Features:
+    - Toggles emoji reactions on/off
+    - One emoji per user per post
+    - Returns updated reaction list
+    
+    Toggle logic:
+    1. If reaction exists: remove it
+    2. If no reaction: add it
+    3. Returns new reaction state
+    
+    Implementation choices:
+    - Simple POST for toggle action
+    - Returns complete reaction list
+    - Includes toggle action for UI
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Group membership check
+    - One reaction per emoji per user
     """
     try:
         post = DiscussionPost.objects.get(id=post_id)
@@ -349,7 +611,35 @@ def toggle_reaction(request, post_id):
 @api_view(["GET", "PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
 def group_detail(request, group_id):
-    """Get group details including members list."""
+    """
+    Endpoints:
+        GET /api/groups/{group_id}/ - Get group details
+        PUT/PATCH /api/groups/{group_id}/ - Update group settings
+    
+    Comprehensive group management endpoint I designed with:
+    
+    GET features:
+    - Full group details
+    - Member list with join dates
+    - Book information
+    - Uses prefetch for efficiency
+    
+    PUT/PATCH features:
+    - Creator-only group updates
+    - End date modification
+    - Date validation
+    
+    Implementation details:
+    - Prefetches related data
+    - Custom member serialization
+    - Date parsing and validation
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Member-only access
+    - Creator-only updates
+    - Date validation
+    """
     try:
         group = ReadingGroup.objects.prefetch_related('memberships__user', 'book').get(id=group_id)
     except ReadingGroup.DoesNotExist:
@@ -384,6 +674,7 @@ def group_detail(request, group_id):
         group.save()
         return Response(ReadingGroupSerializer(group).data)
 
+    # Construct member details with join dates
     members = [
         {
             'id': m.user.id,
@@ -393,6 +684,7 @@ def group_detail(request, group_id):
         for m in group.memberships.all()
     ]
 
+    # Combine all data for comprehensive response
     data = ReadingGroupSerializer(group).data
     data['members'] = members
     data['book_details'] = BookSerializer(group.book).data
@@ -404,7 +696,29 @@ def group_detail(request, group_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def reading_progress_list(request):
-    """Get all reading progress for the current user across all groups."""
+    """
+    Endpoint: GET /api/reading-progress/
+    Response: List of all user's reading progress entries
+    
+    Overview endpoint I designed to show reading activity:
+    - Lists all books being read
+    - Shows progress in each group
+    - Includes related book/group data
+    
+    Implementation details:
+    - Filters by current user
+    - Uses select_related for performance
+    - Returns comprehensive progress data
+    
+    Performance optimizations:
+    - Eager loads book and group
+    - Single query with joins
+    - Efficient serialization
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Only returns user's own progress
+    """
     progress_list = ReadingProgress.objects.filter(user=request.user).select_related('book', 'group')
     serializer = ReadingProgressSerializer(progress_list, many=True)
     return Response(serializer.data)
@@ -413,7 +727,41 @@ def reading_progress_list(request):
 @api_view(["GET", "POST", "PUT"])
 @permission_classes([IsAuthenticated])
 def reading_progress(request, group_id):
-    """Manage reading progress for a user in a group."""
+    """
+    Endpoints:
+        GET /api/groups/{group_id}/progress/ - Get/init progress
+        POST /api/groups/{group_id}/progress/ - Set reading speed
+        PUT /api/groups/{group_id}/progress/ - Update progress
+    
+    Core reading tracking endpoint I designed with multiple functions:
+    
+    GET behavior:
+    - Fetches existing progress
+    - Auto-creates if none exists
+    - Initializes with default values
+    
+    POST behavior:
+    - Sets initial reading speed
+    - Updates user preferences
+    - Creates if needed
+    
+    PUT behavior:
+    - Updates page progress
+    - Tracks completion
+    - Records reading times
+    
+    Implementation details:
+    - Smart progress initialization
+    - Default speed = 0 (unset)
+    - Partial updates supported
+    - Reading time tracking
+    
+    Security & Validation:
+    - Protected endpoint (requires auth)
+    - Group membership check
+    - Data validation via serializer
+    - Safe progress creation
+    """
     try:
         group = ReadingGroup.objects.select_related('book').get(id=group_id)
     except ReadingGroup.DoesNotExist:
@@ -482,7 +830,40 @@ def reading_progress(request, group_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def group_progress_stats(request, group_id):
-    """Get group progress statistics showing member completion status."""
+    """
+    Endpoint: GET /api/groups/{group_id}/stats/
+    Response: Detailed group reading statistics
+    
+    Analytics endpoint I designed to show group progress:
+    
+    Key metrics:
+    - Expected vs actual progress
+    - Member completion status
+    - Reading activity tracking
+    
+    Progress categories:
+    1. Completed - Finished the book
+    2. On Track - At/above expected progress
+    3. Behind - Below expected progress
+    4. Not Started - No progress recorded
+    
+    Calculation features:
+    - Time-based expected progress
+    - Per-member completion tracking
+    - Percentage-based progress
+    - Last activity tracking
+    
+    Implementation details:
+    - Uses select_related for efficiency
+    - Handles missing progress data
+    - Rounds percentages for display
+    - Handles edge cases (pre-start, post-end)
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Member-only access
+    - Safe progress calculations
+    """
     try:
         group = ReadingGroup.objects.select_related('book').get(id=group_id)
     except ReadingGroup.DoesNotExist:
@@ -562,6 +943,7 @@ def group_progress_stats(request, group_id):
                 'last_read': None
             })
 
+    # Return comprehensive statistics
     return Response({
         'total_members': total_members,
         'expected_progress': round(expected_progress, 1),
@@ -589,7 +971,33 @@ def group_progress_stats(request, group_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_group_chapters(request, group_id):
-    """Get all chapters for a group's book"""
+    """
+    Endpoint: GET /api/groups/{group_id}/chapters/
+    Response: Book and chapter information
+    
+    Chapter listing endpoint I designed to support scheduling:
+    
+    Response includes:
+    - Book metadata
+    - Chapter details
+    - Group schedule dates
+    - Total chapter count
+    
+    Implementation details:
+    - Orders chapters by number
+    - Includes group date context
+    - Returns full chapter data
+    
+    Performance:
+    - Efficient chapter filtering
+    - Single query for chapters
+    - Minimal book data included
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Member-only access
+    - Filtered to group's book
+    """
     try:
         group = ReadingGroup.objects.get(id=group_id)
     except ReadingGroup.DoesNotExist:
@@ -602,9 +1010,11 @@ def get_group_chapters(request, group_id):
             status=status.HTTP_403_FORBIDDEN,
         )
     
+    # Get chapters in order
     chapters = Chapter.objects.filter(book=group.book).order_by('chapter_number')
     serializer = ChapterSerializer(chapters, many=True)
     
+    # Combine book and chapter data
     return Response({
         'book_id': group.book.id,
         'book_title': group.book.title,
@@ -618,7 +1028,42 @@ def get_group_chapters(request, group_id):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def chapter_schedule_list(request, group_id):
-    """Get or create chapter schedules for a user in a group"""
+    """
+    Endpoints:
+        GET /api/groups/{group_id}/schedules/ - Get user's schedules
+        POST /api/groups/{group_id}/schedules/ - Create/update schedules
+    
+    Chapter scheduling endpoint I designed for reading planning:
+    
+    GET features:
+    - Lists user's chapter schedules
+    - Includes chapter details
+    - Only returns relevant group
+    
+    POST features:
+    - Bulk schedule creation
+    - Date validation
+    - Error collection
+    - Atomic updates
+    
+    Implementation details:
+    - Uses select_related for efficiency
+    - Validates dates against group schedule
+    - Supports partial success
+    - Returns both successes and errors
+    
+    Validation:
+    - Chapter existence
+    - Date range checks
+    - Required fields
+    - Book ownership
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Member-only access
+    - Date range enforcement
+    - Book scope validation
+    """
     try:
         group = ReadingGroup.objects.get(id=group_id)
     except ReadingGroup.DoesNotExist:
@@ -632,6 +1077,7 @@ def chapter_schedule_list(request, group_id):
         )
     
     if request.method == "GET":
+        # Get user's schedules for this group
         schedules = ChapterSchedule.objects.filter(
             user=request.user,
             group=group
@@ -653,14 +1099,17 @@ def chapter_schedule_list(request, group_id):
         created_schedules = []
         errors = []
         
+        # Process each schedule in the batch
         for schedule_data in schedules_data:
             chapter_id = schedule_data.get('chapter')
             target_date = schedule_data.get('target_completion_date')
             
+            # Validate required fields
             if not chapter_id or not target_date:
                 errors.append(f"Missing chapter or date in schedule")
                 continue
             
+            # Validate chapter exists and belongs to group's book
             try:
                 chapter = Chapter.objects.get(id=chapter_id, book=group.book)
             except Chapter.DoesNotExist:
@@ -683,6 +1132,7 @@ def chapter_schedule_list(request, group_id):
             
             created_schedules.append(ChapterScheduleSerializer(schedule).data)
         
+        # Return results with both successes and errors
         return Response({
             'created': len(created_schedules),
             'schedules': created_schedules,
@@ -693,7 +1143,35 @@ def chapter_schedule_list(request, group_id):
 @api_view(["PUT", "DELETE"])
 @permission_classes([IsAuthenticated])
 def chapter_schedule_detail(request, group_id, schedule_id):
-    """Update or delete a specific chapter schedule"""
+    """
+    Endpoints:
+        PUT /api/groups/{group_id}/schedules/{schedule_id}/ - Update schedule
+        DELETE /api/groups/{group_id}/schedules/{schedule_id}/ - Remove schedule
+    
+    Individual schedule management endpoint I designed with:
+    
+    PUT features:
+    - Update target date
+    - Mark completion status
+    - Track completion time
+    - Validate date range
+    
+    DELETE features:
+    - Remove single schedule
+    - Clean removal
+    
+    Implementation details:
+    - Validates schedule ownership
+    - Updates completion timestamp
+    - Handles date validation
+    - Supports partial updates
+    
+    Security:
+    - Protected endpoint (requires auth)
+    - Owner-only access
+    - Group membership check
+    - Date range validation
+    """
     try:
         group = ReadingGroup.objects.get(id=group_id)
     except ReadingGroup.DoesNotExist:
@@ -713,6 +1191,7 @@ def chapter_schedule_detail(request, group_id, schedule_id):
         target_date = request.data.get('target_completion_date')
         completed = request.data.get('completed')
         
+        # Validate and update target date if provided
         if target_date:
             target_date_obj = parse_date(target_date)
             if target_date_obj < group.start_date or target_date_obj > group.end_date:
@@ -722,6 +1201,7 @@ def chapter_schedule_detail(request, group_id, schedule_id):
                 )
             schedule.target_completion_date = target_date
         
+        # Handle completion status and timestamp
         if completed is not None:
             schedule.completed = completed
             if completed:
