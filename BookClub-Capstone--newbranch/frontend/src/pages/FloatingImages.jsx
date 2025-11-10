@@ -1,30 +1,33 @@
 // src/components/FloatingImages.jsx
-import React from 'react';
-import { Box } from '@mui/material';
+import React from "react";
+import { Box } from "@mui/material";
 
 export default function FloatingImages() {
   // Create an array of image sources
-  const imageSources = Array.from({ length: 13 }, (_, i) => `/pic${i + 1}.jpeg`);
+  const imageSources = Array.from(
+    { length: 13 },
+    (_, i) => `/pic${i + 1}.jpeg`
+  );
 
   return (
     <>
       <Box
         sx={{
-          position: 'relative',
-          height: '280px', // Increased height
+          position: "relative",
+          height: "280px", // Increased height
           mt: 4,
-          overflow: 'hidden',
-          width: '100%',
-          '&:hover': {
-            animationPlayState: 'paused',
+          overflow: "hidden",
+          width: "100%",
+          "&:hover": {
+            animationPlayState: "paused",
           },
         }}
       >
         <Box
           sx={{
-            display: 'flex',
-            animation: 'scroll 30s linear infinite',
-            width: 'max-content',
+            display: "flex",
+            animation: "scroll 30s linear infinite",
+            width: "max-content",
           }}
         >
           {imageSources.map((src, index) => (
@@ -34,15 +37,15 @@ export default function FloatingImages() {
               src={src}
               alt={`Book ${index + 1}`}
               sx={{
-                height: '260px',
-                width: '180px',
-                objectFit: 'contain',
-                borderRadius: '8px',
+                height: "260px",
+                width: "180px",
+                objectFit: "contain",
+                borderRadius: "8px",
                 mx: 2,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               }}
               onError={(e) => {
-                e.target.style.display = 'none';
+                e.target.style.display = "none";
               }}
             />
           ))}
@@ -54,15 +57,15 @@ export default function FloatingImages() {
               src={src}
               alt={`Book ${index + 1} duplicate`}
               sx={{
-                height: '260px',
-                width: '180px',
-                objectFit: 'contain',
-                borderRadius: '8px',
+                height: "260px",
+                width: "180px",
+                objectFit: "contain",
+                borderRadius: "8px",
                 mx: 2,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               }}
               onError={(e) => {
-                e.target.style.display = 'none';
+                e.target.style.display = "none";
               }}
             />
           ))}

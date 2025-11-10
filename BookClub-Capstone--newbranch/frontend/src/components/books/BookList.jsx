@@ -119,7 +119,12 @@ export default function BookList({ onBookSelect }) {
             <Grid item xs={12} sm={6} md={4} key={book.id}>
               <BookCard
                 book={book}
-                onSelect={() => navigate(`/books/${book.id}`)}
+                onSelect={() => {
+                  // If a parent passed an onBookSelect prop, call it
+                  if (onBookSelect) return onBookSelect(book);
+                  // Otherwise navigate to the book detail page
+                  return navigate(`/books/${book.id}`);
+                }}
               />
             </Grid>
           ))}

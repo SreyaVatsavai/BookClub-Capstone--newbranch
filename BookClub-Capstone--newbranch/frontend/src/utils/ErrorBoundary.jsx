@@ -1,5 +1,5 @@
-import React from 'react';
-import { Alert, Box } from '@mui/material';
+import React from "react";
+import { Alert, Box } from "@mui/material";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -12,7 +12,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
+    console.error("Error caught by boundary:", error, errorInfo);
     // You could add error reporting service here
   }
 
@@ -29,3 +29,5 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;
